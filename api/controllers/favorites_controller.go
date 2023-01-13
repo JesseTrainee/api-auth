@@ -15,21 +15,21 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func (server *Server) CreatePost(w http.ResponseWriter, r *http.Request) {
+func (server *Server) CreateFavorite(w http.ResponseWriter, r *http.Request) {
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		responses.ERROR(w, http.StatusUnprocessableEntity, err)
 		return
 	}
-	post := models.Post{}
-	err = json.Unmarshal(body, &post)
+	Favorite := models.Favorite{}
+	err = json.Unmarshal(body, &Favorite)
 	if err != nil {
 		responses.ERROR(w, http.StatusUnprocessableEntity, err)
 		return
 	}
-	post.Prepare()
-	err = post.Validate()
+	Favorite.Prepare()
+	err = Favorite.Validate()
 	if err != nil {
 		responses.ERROR(w, http.StatusUnprocessableEntity, err)
 		return
@@ -39,56 +39,56 @@ func (server *Server) CreatePost(w http.ResponseWriter, r *http.Request) {
 		responses.ERROR(w, http.StatusUnauthorized, errors.New("Unauthorized"))
 		return
 	}
-	if uid != post.AuthorID {
+	if uid != Favorite.UserID {
 		responses.ERROR(w, http.StatusUnauthorized, errors.New(http.StatusText(http.StatusUnauthorized)))
 		return
 	}
-	postCreated, err := post.SavePost(server.DB)
+	FavoriteCreated, err := Favorite.SaveFavorite(server.DB)
 	if err != nil {
 		formattedError := formaterror.FormatError(err.Error())
 		responses.ERROR(w, http.StatusInternalServerError, formattedError)
 		return
 	}
-	w.Header().Set("Location", fmt.Sprintf("%s%s/%d", r.Host, r.URL.Path, postCreated.ID))
-	responses.JSON(w, http.StatusCreated, postCreated)
+	w.Header().Set("Location", fmt.Sprintf("%s%s/%d", r.Host, r.URL.Path, FavoriteCreated.ID))
+	responses.JSON(w, http.StatusCreated, FavoriteCreated)
 }
 
-func (server *Server) GetPosts(w http.ResponseWriter, r *http.Request) {
+func (server *Server) GetFavorites(w http.ResponseWriter, r *http.Request) {
 
-	post := models.Post{}
+	favorite := models.Favorite{}
 
-	posts, err := post.FindAllPosts(server.DB)
+	Favorites, err := favorite.FindAllFavorites(server.DB)
 	if err != nil {
 		responses.ERROR(w, http.StatusInternalServerError, err)
 		return
 	}
-	responses.JSON(w, http.StatusOK, posts)
+	responses.JSON(w, http.StatusOK, Favorites)
 }
 
-func (server *Server) GetPost(w http.ResponseWriter, r *http.Request) {
+func (server *Server) GetFavorite(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
-	pid, err := strconv.ParseUint(vars["id"], 10, 64)
+	fid, err := strconv.ParseUint(vars["id"], 10, 64)
 	if err != nil {
 		responses.ERROR(w, http.StatusBadRequest, err)
 		return
 	}
-	post := models.Post{}
+	favorite := models.Favorite{}
 
-	postReceived, err := post.FindPostByID(server.DB, pid)
+	favoriteReceived, err := favorite.FindFavoriteByID(server.DB, fid)
 	if err != nil {
 		responses.ERROR(w, http.StatusInternalServerError, err)
 		return
 	}
-	responses.JSON(w, http.StatusOK, postReceived)
+	responses.JSON(w, http.StatusOK, favoriteReceived)
 }
 
-func (server *Server) UpdatePost(w http.ResponseWriter, r *http.Request) {
+func (server *Server) UpdateFavorite(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 
-	// Check if the post id is valid
-	pid, err := strconv.ParseUint(vars["id"], 10, 64)
+	// Check if the favorite id is valid
+	fid, err := strconv.ParseUint(vars["id"], 10, 64)
 	if err != nil {
 		responses.ERROR(w, http.StatusBadRequest, err)
 		return
@@ -101,20 +101,20 @@ func (server *Server) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if the post exist
-	post := models.Post{}
-	err = server.DB.Debug().Model(models.Post{}).Where("id = ?", pid).Take(&post).Error
+	// Check if the favorite exist
+	favorite := models.Favorite{}
+	err = server.DB.Debug().Model(models.Favorite{}).Where("id = ?", fid).Take(&favorite).Error
 	if err != nil {
-		responses.ERROR(w, http.StatusNotFound, errors.New("Post not found"))
+		responses.ERROR(w, http.StatusNotFound, errors.New("Favorite not found"))
 		return
 	}
 
-	// If a user attempt to update a post not belonging to him
-	if uid != post.AuthorID {
+	// If a user attempt to update a favorite not belonging to him
+	if uid != favorite.UserID {
 		responses.ERROR(w, http.StatusUnauthorized, errors.New("Unauthorized"))
 		return
 	}
-	// Read the data posted
+	// Read the data favoriteed
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		responses.ERROR(w, http.StatusUnprocessableEntity, err)
@@ -122,44 +122,44 @@ func (server *Server) UpdatePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Start processing the request data
-	postUpdate := models.Post{}
-	err = json.Unmarshal(body, &postUpdate)
+	favoriteUpdate := models.Favorite{}
+	err = json.Unmarshal(body, &favoriteUpdate)
 	if err != nil {
 		responses.ERROR(w, http.StatusUnprocessableEntity, err)
 		return
 	}
 
 	//Also check if the request user id is equal to the one gotten from token
-	if uid != postUpdate.AuthorID {
+	if uid != favoriteUpdate.UserID {
 		responses.ERROR(w, http.StatusUnauthorized, errors.New("Unauthorized"))
 		return
 	}
 
-	postUpdate.Prepare()
-	err = postUpdate.Validate()
+	favoriteUpdate.Prepare()
+	err = favoriteUpdate.Validate()
 	if err != nil {
 		responses.ERROR(w, http.StatusUnprocessableEntity, err)
 		return
 	}
 
-	postUpdate.ID = post.ID //this is important to tell the model the post id to update, the other update field are set above
+	favoriteUpdate.ID = favorite.ID //this is important to tell the model the favorite id to update, the other update field are set above
 
-	postUpdated, err := postUpdate.UpdateAPost(server.DB)
+	favoriteUpdated, err := favoriteUpdate.UpdateAFavorite(server.DB)
 
 	if err != nil {
 		formattedError := formaterror.FormatError(err.Error())
 		responses.ERROR(w, http.StatusInternalServerError, formattedError)
 		return
 	}
-	responses.JSON(w, http.StatusOK, postUpdated)
+	responses.JSON(w, http.StatusOK, favoriteUpdated)
 }
 
-func (server *Server) DeletePost(w http.ResponseWriter, r *http.Request) {
+func (server *Server) DeleteFavorite(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 
-	// Is a valid post id given to us?
-	pid, err := strconv.ParseUint(vars["id"], 10, 64)
+	// Is a valid favorite id given to us?
+	fid, err := strconv.ParseUint(vars["id"], 10, 64)
 	if err != nil {
 		responses.ERROR(w, http.StatusBadRequest, err)
 		return
@@ -172,24 +172,24 @@ func (server *Server) DeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if the post exist
-	post := models.Post{}
-	err = server.DB.Debug().Model(models.Post{}).Where("id = ?", pid).Take(&post).Error
+	// Check if the favorite exist
+	favorite := models.Favorite{}
+	err = server.DB.Debug().Model(models.Favorite{}).Where("id = ?", fid).Take(&favorite).Error
 	if err != nil {
 		responses.ERROR(w, http.StatusNotFound, errors.New("Unauthorized"))
 		return
 	}
 
-	// Is the authenticated user, the owner of this post?
-	if uid != post.AuthorID {
+	// Is the authenticated user, the owner of this favorite?
+	if uid != favorite.UserID {
 		responses.ERROR(w, http.StatusUnauthorized, errors.New("Unauthorized"))
 		return
 	}
-	_, err = post.DeleteAPost(server.DB, pid, uid)
+	_, err = favorite.DeleteAFavorite(server.DB, fid, uid)
 	if err != nil {
 		responses.ERROR(w, http.StatusBadRequest, err)
 		return
 	}
-	w.Header().Set("Entity", fmt.Sprintf("%d", pid))
+	w.Header().Set("Entity", fmt.Sprintf("%d", fid))
 	responses.JSON(w, http.StatusNoContent, "")
 }
